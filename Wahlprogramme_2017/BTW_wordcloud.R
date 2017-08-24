@@ -44,10 +44,23 @@ txt.tdm <- TermDocumentMatrix(txt, control = list(removePunctuation = TRUE,
                                                   bounds = list(global = c(3, Inf))))#only words mentioned at least three times across manifestos
 
 ft_matrix_prop = prop.table(as.matrix(txt.tdm), margin = 2)#column proportions
-colnames(ft_matrix_prop) <- c("CDU/CSU", "SDP", "Die Linke", "FDP", "GrÃ¼ne", "AFD") # add publication ready column labels
+party_names = c("CDU/CSU", "SDP", "Die Linke", "FDP", "Grüne", "AFD")
+colnames(ft_matrix_prop) <- party_names # add publication ready column labels
 
 ##################################################################################
 # PLOTTING
 
+party_colours = c('black', 'red', 'magenta 3', 'orange', 'dark green', 'blue')
+
 comparison.cloud(ft_matrix_prop, max.words = 200, random.order = FALSE,
-                 colors = c('black', 'red', 'magenta 3', 'orange', 'dark green', 'blue'), title.size = 1.5)
+                 colors = party_colours, title.size = 1.5)
+mtext('@rikunert', side = 1, line = 4, adj = 0) # caption
+
+for (i in 1:length(party_names)) { 
+  wordcloud(rownames(ft_matrix_prop), ft_matrix_prop[,i],
+            min.freq = 0.001, max.words = 100,
+            colors = party_colours[i],
+            scale = c(3.2, .4))
+  mtext('@rikunert', side = 1, line = 4, adj = 0) # caption
+  mtext(party_names[i], side = 3, line = 3, adj = 0.5) # title
+}
