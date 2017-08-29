@@ -44,7 +44,7 @@ txt.tdm <- TermDocumentMatrix(txt, control = list(removePunctuation = TRUE,
                                                   bounds = list(global = c(3, Inf))))#only words mentioned at least three times across manifestos
 
 ft_matrix_prop = prop.table(as.matrix(txt.tdm), margin = 2)#column proportions
-party_names = c("CDU/CSU", "SDP", "Die Linke", "FDP", "Grüne", "AFD")
+party_names = c("CDU/CSU", "SPD", "Die Linke", "FDP", "GrÃ¼ne", "AFD")
 colnames(ft_matrix_prop) <- party_names # add publication ready column labels
 
 ##################################################################################
