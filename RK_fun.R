@@ -13,9 +13,15 @@ library(tm)
 if(!require(topicmodels)){install.packages('topicmodels')} #Latent Dirichlet Allocation
 library(topicmodels)
 
+if(!require(RTextTools)){install.packages('RTextTools')} #create_matrix function
+library(RTextTools)
+
 if(!require(smotefamily)){install.packages('smotefamily')} #Synthetic Minority Oversampling TEchnique
 if(!require(FNN)){install.packages('FNN')} #if not installed we get an error
 library(smotefamily)
+
+if(!require(data.table)){install.packages('data.table')} #Synthetic Minority Oversampling TEchnique
+library(data.table)#rbindlist function
 
 if(!require(ROSE)){install.packages('ROSE')} #Random Over-Sampling Examples
 library(ROSE)
@@ -52,6 +58,7 @@ LSA_fun = function(texts, nDim = 100, verbose = T){
   #Tk will consist of terms and values along each dimension. 
   #Dk will consist of documents and its values along each dimension.
   
+  gc()
   return(lsa_space$dk)
 }
 
@@ -77,7 +84,35 @@ LDA_fun = function(texts, nDim = 100, verbose = T){
   
   #as.matrix(terms(lda,6))#top 6 terms in each topic
   
+  gc()
   return(lda_space@gamma)#probabilities associated with each topic assignment
+}
+
+#########################################################################
+#Raw text vectorization
+
+TXT_fun = function(texts, weighting = tm::weightTfIdf, ngramLength = 1, verbose = T){ 
+  
+  #This function turns a list of input strings (texts) into an n dimensional word space
+  #The output is a nrow(texts) x n (words) matrix representing each string as a vector in word space
+  
+  if (verbose) print('Vectorizing text...')
+  
+  corp <- Corpus(VectorSource(texts))
+  dtm = create_matrix(texts, language="english", removeNumbers=TRUE,
+                      stemWords=F, removeStopwords=TRUE, toLower=TRUE,
+                      ngramLength= ngramLength, weighting=weighting)#removeSparseTerms=.95,
+  # dtm = DocumentTermMatrix(corp, control = list(weighting = weightTfIdf, removePunctuation = TRUE, 
+  #                                               removeNumbers = TRUE, stopwords = TRUE,
+  #                                               tolower = T,
+  #                                               minWordLength = 3))
+  sparse_DTM <- sparseMatrix(i = dtm$i, j = dtm$j, x = dtm$v,
+                             dims = dim(dtm),
+                             dimnames = list(rownames(dtm), colnames(dtm)))
+  
+  gc()
+  return(as.matrix(sparse_DTM))
+  
 }
 
 ###################################################################################
@@ -107,7 +142,67 @@ balance_fun = function(texts, classes, balance_algo = 'SMOTE'){
     
   } else if (balance_algo == 'SMOTE') {#SMOTE (Synthetic Minority Oversampling TEchnique)
     
-    texts_SMOTE = SMOTE(as.data.frame(texts), classes, K = 5, dup_size = 0)
+    #the following code is a nearly verbatim copy of the SMOTE function.
+    #I adjusted it to work with matrices
+    
+    #otherwise use this, which fails with very large input matrix (raw DTM)
+    #texts_SMOTE = SMOTE(as.data.frame(texts), classes, K = 5, dup_size = 0)
+    
+    X = texts
+    target = classes
+    K = 5
+    dup_size = 0
+    
+    ncD = ncol(X)
+    n_target = table(target)
+    classP = names(which.min(n_target))
+    P_set = subset(X, target == names(which.min(n_target)))[sample(min(n_target)),]
+    N_set = subset(X, target != names(which.min(n_target)))
+    P_class = rep(names(which.min(n_target)), nrow(P_set))
+    N_class = target[target != names(which.min(n_target))]
+    sizeP = nrow(P_set)
+    sizeN = nrow(N_set)
+    knear = knearest(P_set, P_set, K)
+    sum_dup = n_dup_max(sizeP + sizeN, sizeP, sizeN, dup_size)
+    syn_dat = NULL
+    for (i in 1:sizeP) {
+      if (is.matrix(knear)) {
+        pair_idx = knear[i, ceiling(runif(sum_dup) * K)]
+      }
+      else {
+        pair_idx = rep(knear[i], sum_dup)
+      }
+      g = runif(sum_dup)
+      P_i = matrix(unlist(P_set[i, ]), sum_dup, ncD, byrow = TRUE)
+      Q_i = as.matrix(P_set[pair_idx, ])
+      syn_i = P_i + g * (Q_i - P_i)
+      syn_dat = rbind(syn_dat, syn_i)
+    }
+    P_set = cbind(P_set, P_class)
+    #P_set[, ncD + 1] = P_class#doesn't work for matrices -RK
+    #colnames(P_set) = c(colnames(X), "class")
+    N_set = cbind(N_set, N_class)
+    #N_set[, ncD + 1] = N_class
+    #colnames(N_set) = c(colnames(X), "class")
+    rownames(syn_dat) = NULL
+    syn_dat = data.frame(syn_dat)
+    syn_dat = cbind(syn_dat, rep(names(which.min(n_target)), nrow(syn_dat))) 
+    #syn_dat[, ncD + 1] = rep(names(which.min(n_target)), nrow(syn_dat))
+    #colnames(syn_dat) = c(colnames(X), "class")
+    names(syn_dat) = NULL
+    NewD = data.frame(rbindlist(list(as.data.frame(P_set),
+                                     as.data.frame(syn_dat), 
+                                     as.data.frame(N_set))))
+    #NewD = rbind(P_set, syn_dat, N_set)
+    rownames(NewD) = NULL
+    D_result = list(data = NewD, syn_data = syn_dat, orig_N = N_set, 
+                    orig_P = P_set, K = K, K_all = NULL, dup_size = sum_dup, 
+                    outcast = NULL, eps = NULL, method = "SMOTE")
+    class(D_result) = "gen_data"
+
+    #end of copying SMOTE function
+        
+    texts_SMOTE = D_result
     
     texts_out = texts_SMOTE$data[,1:ncol(texts)]
     classes_out = texts_SMOTE$data[,ncol(texts) + 1]
@@ -124,7 +219,9 @@ balance_fun = function(texts, classes, balance_algo = 'SMOTE'){
     
   }
   
-  return(data.frame(texts = texts_out,
+  gc()
+  
+  return(list(texts = texts_out,
                     classes = classes_out))
   
 }
@@ -132,32 +229,39 @@ balance_fun = function(texts, classes, balance_algo = 'SMOTE'){
 ###################################################################################
 #SVM
 
-SVM_fun = function (texts_train, texts_test, classes_train, classes_test, verbose = T){
+SVM_fun = function (texts_train, texts_test, classes_train, classes_test,
+                    param = data.frame(cost = NA, gamma = NA), verbose = T){
   
   #This function trains a SVM classifier on text data and provides some diagnostics
   #It automatically finds optimal classifier settings
   #It outputs diagnostics
   
   #Determine optimal SVM parameters
-  print('Determining optimal SVM parameters...')
-  svm_tune <- tune(svm, train.x=texts_train,
-                   train.y=classes_training,
-                   kernel="radial",
-                   scale = F,
-                   parallel.core = 2,
-                   ranges=list(cost=10^(0:4),
-                               gamma=c(seq(0.01,0.2, 0.04), 0.25, .5, c(seq(1,15, 4), 30, 50, 100))))
-  
-  if(verbose) print(svm_tune)
-  #svm_tune$performances$error
+  if (is.na(param$cost)){
+    print('Determining optimal SVM parameters...')
+    svm_tune <- tune(svm, train.x=texts_train,
+                     train.y=classes_train,
+                     kernel="radial",
+                     scale = T,
+                     parallel.core = 2,
+                     ranges=list(cost=10,#10^(0:3),
+                                 gamma=seq(20,100,10)))#3^(0:5)))
+    
+    if(verbose) print(svm_tune)
+    #svm_tune$performances$error
+    
+    param$cost = svm_tune$best.parameters$cost
+    param$gamma = svm_tune$best.parameters$gamma
+  }
   
   #Train SVM
   print('Training SVM classifier...')
   svm_m = svm(x = texts_train,#training vectors
               y = classes_train,#training classification
-              kernel = 'radial', probability = T, scale = F,
-              cost = svm_tune$best.parameters$cost,
-              gamme = svm_tune$best.parameters$gamma)
+              kernel = 'radial', probability = T,
+              scale = F,
+              cost = param$cost,
+              gamma = param$gamma)
   
   #performance on training sample
   #pred <- predict(svm_m, texts_train)
@@ -184,6 +288,7 @@ SVM_fun = function (texts_train, texts_test, classes_train, classes_test, verbos
                               sum(classes_test == 0)))
   
   #start off with a histogram only made for extracting values. The interest is not in looking at p
+  
   p = ggplot(data = data.frame(x = attr(pred, 'probabilities')[, 2],
                                included = as.factor(classes_test)),
              aes(x = x, fill = included, linetype = included)) +
@@ -200,16 +305,19 @@ SVM_fun = function (texts_train, texts_test, classes_train, classes_test, verbos
   
   if(verbose) print(p_multihist)
   
+  gc()
+  
   #return all sorts of diagnostics
   return(list(testing_sample_size = length(classes_test),
               training_sample_size = length(classes_train),
-              training_prop_positive_cases = sum(classes_train),
+              training_prop_positive_cases = mean(as.numeric(as.character(classes_train))),
               nDim = ncol(texts_train),
-              SVM_parameters = svm_tune$best.parameters,
-              testing_sample_acc = sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_testing[x])))/length(pred),
+              #SVM_parameters = svm_tune$best.parameters,
+              testing_sample_acc = sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_test[x])))/length(pred),
               prop_excl_before_FN = sum(attr(pred, 'probabilities')[classes_test == 0, 2] > 
                                           max(attr(pred, 'probabilities')[classes_test == 1, 2]))/
                 sum(classes_test == 0),
+              max_rej_conf_of_TP = max(attr(pred, 'probabilities')[classes_test == 1, 2]),#ideally low
               testing_confusion_matrix = table(pred,factor(classes_test)),
               multihist = p_multihist
   ))
