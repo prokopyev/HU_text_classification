@@ -4,6 +4,10 @@
 
 #########################################################################
 #Load libraries
+
+if(!require(textstem)){install.packages('textstem')} #
+library(textstem) #lemmatization (rather than stupid stemming)
+
 if(!require(lsa)){install.packages('lsa')} #latent semantic analysis
 library(lsa)
 
@@ -31,6 +35,79 @@ library(e1071)
 
 if(!require(ggplot2)){install.packages('ggplot2')} #plotting
 library(ggplot2)
+
+#########################################################################
+#Data Cleaning
+
+Cleaning_fun = function(texts){ 
+  
+  #Remove non-ASCII characters
+  texts = iconv(texts, "latin1", "ASCII", sub=" ")
+  
+  #Remove non-alphanumeric characters
+  texts = gsub("[^[:alnum:] ]", "", texts)
+  
+  #Remove footers
+  texts = removeWords(texts,c('PsycINFO Database Record c \\d+ APA all rights reserved',
+                                                        'C \\d+ Elsevier Ltd All rights reserved',
+                                                        'C \\d+ Elsevier BV All rights reserved',
+                                                        'C \\d+ Elsevier GmbH All rights reserved',
+                                                        'C \\d+ Elsevier Inc All rights reserved',
+                                                        'C \\d+ Elsevier Ireland Ltd All rights reserved',
+                                                        'C \\d+ Published by Elsevier Inc',
+                                                        'c \\d+ Wiley Periodicals Inc',
+                                                        'C \\d+ The Authors Published by Elsevier Ltd',
+                                                        'C \\d+ The Authors Production and hosting by Elsevier BV on behalf of King Saud University',
+                                                        'C \\d+ Published by Elsevier BV on behalf of European Cystic Fibrosis Society',
+                                                        'Copyright c \\d+ John Wiley  Sons Ltd',
+                                                        'C \\d+ Institution of Chemical Engineers Published by Elsevier BV All rights reserved',
+                                                        'Contains \\d+ table',
+                                                        'Contains \\d+ tables',
+                                                        'Contains \\d+ figure',
+                                                        'Contains \\d+ figures',
+                                                        'Contains \\d+ note',
+                                                        'Contains \\d+ notes',
+                                                        'Contains \\d+ footnotes',
+                                                        'Contains \\d+ figure and \\d+ tables',
+                                                        'Contains \\d+ figures and \\d+ tables',
+                                                        'Contains \\d+ figures and \\d+ online resources',
+                                                        'Contains \\d+ figures and \\d+ table',
+                                                        'Contains \\d+ figures and \\d+ footnote',
+                                                        'Contains \\d+ table and \\d+ figures',
+                                                        'Contains \\d+ table and \\d+ note',
+                                                        'Contains \\d+ tables and \\d+ figure',
+                                                        'Contains \\d+ tables and \\d+ resources',
+                                                        'Contains \\d+ tables and \\d+ notes',
+                                                        'Contains \\d+ tables \\d+ figures and \\d+ note',
+                                                        'Contains \\d+ tables and \\d+ figures',
+                                                        'Contains \\d+ notes and 1 table',
+                                                        'Contains \\d+ notes \\d+ figures and \\d+ table',
+                                                        'Contains \\d+ figures \\d+ tables and \\d+ notes',
+                                                        'Contains \\d+ figures 1 table and 1 footnote',
+                                                        'C \\d+ by the American College of Cardiology Foundation',
+                                                        'Anesth Analg \\d+ \\d+',
+                                                        'Global Health Promotion \\d+  \\d+ \\d+',
+                                                        'C \\d+ Acoustical Society of America',
+                                                        'C \\d+ Association of Program Directors in Surgery Published by Elsevier Inc All rights reserved',
+                                                        'There are no conflicts of interest to declare',
+                                                        'C \\d+ by The International Union of Biochemistry and Molecular Biology',
+                                                        'Journal of International Business Studies \\d+ \\d+ \\d+',
+                                                        'C \\d+ Jurusan Fisika FMIPA UNNES Semarang',
+                                                        'Ann Emerg Med \\d+ \\d+',
+                                                        'Clin Trans Sci \\d+  Volume \\d+ \\d+',
+                                                        'C \\d+ Wiley Periodicals Inc J Res Sci Teach \\d+ \\d+ \\d+',
+                                                        'Copyright c \\d+ Strategic Management Society',
+                                                        'c \\d+ by The International Union of Biochemistry and Molecular Biology \\d+ \\d+'
+  ))
+  
+  #Lemmatize the corpus
+  texts = lemmatize_strings(texts)
+  
+  gc()
+  
+  return(texts)
+  
+  }
 
 #########################################################################
 #LSA
@@ -156,8 +233,8 @@ balance_fun = function(texts, classes, balance_algo = 'SMOTE'){
     ncD = ncol(X)
     n_target = table(target)
     classP = names(which.min(n_target))
-    P_set = subset(X, target == names(which.min(n_target)))[sample(min(n_target)),]
-    N_set = subset(X, target != names(which.min(n_target)))
+    P_set = subset(X, target == names(which.min(n_target)))[sample(min(n_target)),]#minority
+    N_set = subset(X, target != names(which.min(n_target)))#majority
     P_class = rep(names(which.min(n_target)), nrow(P_set))
     N_class = target[target != names(which.min(n_target))]
     sizeP = nrow(P_set)
