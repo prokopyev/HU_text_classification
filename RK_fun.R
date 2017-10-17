@@ -36,6 +36,13 @@ library(e1071)
 if(!require(ggplot2)){install.packages('ggplot2')} #plotting
 library(ggplot2)
 
+if(!require(caTools)){install.packages('caTools')} #Boosting
+library(caTools)
+
+if(!require(randomForest)){install.packages('randomForest')} #Random Forest
+library(randomForest)
+
+
 #########################################################################
 #Data Cleaning
 
@@ -48,57 +55,58 @@ Cleaning_fun = function(texts){
   texts = gsub("[^[:alnum:] ]", "", texts)
   
   #Remove footers
-  texts = removeWords(texts,c('PsycINFO Database Record c \\d+ APA all rights reserved',
-                                                        'C \\d+ Elsevier Ltd All rights reserved',
-                                                        'C \\d+ Elsevier BV All rights reserved',
-                                                        'C \\d+ Elsevier GmbH All rights reserved',
-                                                        'C \\d+ Elsevier Inc All rights reserved',
-                                                        'C \\d+ Elsevier Ireland Ltd All rights reserved',
-                                                        'C \\d+ Published by Elsevier Inc',
-                                                        'c \\d+ Wiley Periodicals Inc',
-                                                        'C \\d+ The Authors Published by Elsevier Ltd',
-                                                        'C \\d+ The Authors Production and hosting by Elsevier BV on behalf of King Saud University',
-                                                        'C \\d+ Published by Elsevier BV on behalf of European Cystic Fibrosis Society',
-                                                        'Copyright c \\d+ John Wiley  Sons Ltd',
-                                                        'C \\d+ Institution of Chemical Engineers Published by Elsevier BV All rights reserved',
-                                                        'Contains \\d+ table',
-                                                        'Contains \\d+ tables',
-                                                        'Contains \\d+ figure',
-                                                        'Contains \\d+ figures',
-                                                        'Contains \\d+ note',
-                                                        'Contains \\d+ notes',
-                                                        'Contains \\d+ footnotes',
-                                                        'Contains \\d+ figure and \\d+ tables',
-                                                        'Contains \\d+ figures and \\d+ tables',
-                                                        'Contains \\d+ figures and \\d+ online resources',
-                                                        'Contains \\d+ figures and \\d+ table',
-                                                        'Contains \\d+ figures and \\d+ footnote',
-                                                        'Contains \\d+ table and \\d+ figures',
-                                                        'Contains \\d+ table and \\d+ note',
-                                                        'Contains \\d+ tables and \\d+ figure',
-                                                        'Contains \\d+ tables and \\d+ resources',
-                                                        'Contains \\d+ tables and \\d+ notes',
-                                                        'Contains \\d+ tables \\d+ figures and \\d+ note',
-                                                        'Contains \\d+ tables and \\d+ figures',
-                                                        'Contains \\d+ notes and 1 table',
-                                                        'Contains \\d+ notes \\d+ figures and \\d+ table',
-                                                        'Contains \\d+ figures \\d+ tables and \\d+ notes',
-                                                        'Contains \\d+ figures 1 table and 1 footnote',
-                                                        'C \\d+ by the American College of Cardiology Foundation',
-                                                        'Anesth Analg \\d+ \\d+',
-                                                        'Global Health Promotion \\d+  \\d+ \\d+',
-                                                        'C \\d+ Acoustical Society of America',
-                                                        'C \\d+ Association of Program Directors in Surgery Published by Elsevier Inc All rights reserved',
-                                                        'There are no conflicts of interest to declare',
-                                                        'C \\d+ by The International Union of Biochemistry and Molecular Biology',
-                                                        'Journal of International Business Studies \\d+ \\d+ \\d+',
-                                                        'C \\d+ Jurusan Fisika FMIPA UNNES Semarang',
-                                                        'Ann Emerg Med \\d+ \\d+',
-                                                        'Clin Trans Sci \\d+  Volume \\d+ \\d+',
-                                                        'C \\d+ Wiley Periodicals Inc J Res Sci Teach \\d+ \\d+ \\d+',
-                                                        'Copyright c \\d+ Strategic Management Society',
-                                                        'c \\d+ by The International Union of Biochemistry and Molecular Biology \\d+ \\d+'
-  ))
+  texts = removeWords(texts,
+                      c('PsycINFO Database Record c \\d+ APA all rights reserved',
+                        'C \\d+ Elsevier Ltd All rights reserved',
+                        'C \\d+ Elsevier BV All rights reserved',
+                        'C \\d+ Elsevier GmbH All rights reserved',
+                        'C \\d+ Elsevier Inc All rights reserved',
+                        'C \\d+ Elsevier Ireland Ltd All rights reserved',
+                        'C \\d+ Published by Elsevier Inc',
+                        'c \\d+ Wiley Periodicals Inc',
+                        'C \\d+ The Authors Published by Elsevier Ltd',
+                        'C \\d+ The Authors Production and hosting by Elsevier BV on behalf of King Saud University',
+                        'C \\d+ Published by Elsevier BV on behalf of European Cystic Fibrosis Society',
+                        'Copyright c \\d+ John Wiley  Sons Ltd',
+                        'C \\d+ Institution of Chemical Engineers Published by Elsevier BV All rights reserved',
+                        'Contains \\d+ table',
+                        'Contains \\d+ tables',
+                        'Contains \\d+ figure',
+                        'Contains \\d+ figures',
+                        'Contains \\d+ note',
+                        'Contains \\d+ notes',
+                        'Contains \\d+ footnotes',
+                        'Contains \\d+ figure and \\d+ tables',
+                        'Contains \\d+ figures and \\d+ tables',
+                        'Contains \\d+ figures and \\d+ online resources',
+                        'Contains \\d+ figures and \\d+ table',
+                        'Contains \\d+ figures and \\d+ footnote',
+                        'Contains \\d+ table and \\d+ figures',
+                        'Contains \\d+ table and \\d+ note',
+                        'Contains \\d+ tables and \\d+ figure',
+                        'Contains \\d+ tables and \\d+ resources',
+                        'Contains \\d+ tables and \\d+ notes',
+                        'Contains \\d+ tables \\d+ figures and \\d+ note',
+                        'Contains \\d+ tables and \\d+ figures',
+                        'Contains \\d+ notes and 1 table',
+                        'Contains \\d+ notes \\d+ figures and \\d+ table',
+                        'Contains \\d+ figures \\d+ tables and \\d+ notes',
+                        'Contains \\d+ figures 1 table and 1 footnote',
+                        'C \\d+ by the American College of Cardiology Foundation',
+                        'Anesth Analg \\d+ \\d+',
+                        'Global Health Promotion \\d+  \\d+ \\d+',
+                        'C \\d+ Acoustical Society of America',
+                        'C \\d+ Association of Program Directors in Surgery Published by Elsevier Inc All rights reserved',
+                        'There are no conflicts of interest to declare',
+                        'C \\d+ by The International Union of Biochemistry and Molecular Biology',
+                        'Journal of International Business Studies \\d+ \\d+ \\d+',
+                        'C \\d+ Jurusan Fisika FMIPA UNNES Semarang',
+                        'Ann Emerg Med \\d+ \\d+',
+                        'Clin Trans Sci \\d+  Volume \\d+ \\d+',
+                        'C \\d+ Wiley Periodicals Inc J Res Sci Teach \\d+ \\d+ \\d+',
+                        'Copyright c \\d+ Strategic Management Society',
+                        'c \\d+ by The International Union of Biochemistry and Molecular Biology \\d+ \\d+'
+                      ))
   
   #Lemmatize the corpus
   texts = lemmatize_strings(texts)
@@ -112,21 +120,25 @@ Cleaning_fun = function(texts){
 #########################################################################
 #LSA
 
-LSA_fun = function(texts, nDim = 100, verbose = T){ 
+LSA_fun = function(texts, nDim = 100, ngramLength = 1, verbose = T){ 
   
   #This function turns a list of input strings (texts) into an nDim dimensional semantic space
   #The output is a nrow(texts) x nDim matrix representing each string as a vector in semantic space
   
-  if (verbose) print('Creating LSA space...')
+  if (verbose) print(sprintf('Creating LSA space with nDim %d and ngramLength %d...', nDim, ngramLength))
   
   #texts should be a list of strings
   
   #create document term matrix
   corp <- Corpus(VectorSource(texts))
+  
+  ngramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = ngramLength, max = ngramLength))
+  
   tdm = TermDocumentMatrix(corp, control = list(weighting = weightTfIdf, removePunctuation = TRUE, 
                                                 removeNumbers = TRUE, stopwords = TRUE,
                                                 tolower = T,
-                                                minWordLength = 3))
+                                                minWordLength = 3,
+                                                tokenize=ngramTokenizer))
   
   # create LSA space
   lsa_space = lsa(tdm, dims = nDim)
@@ -173,7 +185,7 @@ TXT_fun = function(texts, weighting = tm::weightTfIdf, ngramLength = 1, verbose 
   #This function turns a list of input strings (texts) into an n dimensional word space
   #The output is a nrow(texts) x n (words) matrix representing each string as a vector in word space
   
-  if (verbose) print('Vectorizing text...')
+  if (verbose) print(sprintf('Vectorizing text at ngramLength %d...', ngramLength))
   
   corp <- Corpus(VectorSource(texts))
   dtm = create_matrix(texts, language="english", removeNumbers=TRUE,
@@ -195,14 +207,14 @@ TXT_fun = function(texts, weighting = tm::weightTfIdf, ngramLength = 1, verbose 
 ###################################################################################
 #BALANCE DATA SET
 
-balance_fun = function(texts, classes, balance_algo = 'SMOTE'){
+balance_fun = function(texts, classes, balance_algo = 'SMOTE', verbose = T){
   
   #A collection of options for turning an unbalanced data set into a balanced one
   #The data set is defined by texts (a n x m matrix with rows representing texts and columns representing dimensions)
   #and classes (the class membership labels corresponding to rows in texts)
   #values for balance_algo = c('none', 'under', 'SMOTE', 'ROSE')
   
-  print('Balancing training data...')
+  if (verbose) print('Balancing training data...')
   
   if (balance_algo == 'none') {#simply ignore the problem and live with the imbalance
     
@@ -281,7 +293,8 @@ balance_fun = function(texts, classes, balance_algo = 'SMOTE'){
         
     texts_SMOTE = D_result
     
-    texts_out = texts_SMOTE$data[,1:ncol(texts)]
+    texts_out = as.matrix(texts_SMOTE$data[,1:ncol(texts)])
+    class(texts_out) = 'numeric'
     classes_out = texts_SMOTE$data[,ncol(texts) + 1]
     
   } else if (balance_algo == 'ROSE') {#ROSE (Random Over-Sampling Examples)
@@ -315,7 +328,7 @@ SVM_fun = function (texts_train, texts_test, classes_train, classes_test,
   
   #Determine optimal SVM parameters
   if (is.na(param$cost)){
-    print('Determining optimal SVM parameters...')
+    if (verbose) print('Determining optimal SVM parameters...')
     svm_tune <- tune(svm, train.x=texts_train,
                      train.y=classes_train,
                      kernel="radial",
@@ -332,14 +345,26 @@ SVM_fun = function (texts_train, texts_test, classes_train, classes_test,
   }
   
   #Train SVM
-  print('Training SVM classifier...')
-  svm_m = svm(x = texts_train,#training vectors
-              y = classes_train,#training classification
-              kernel = 'radial', probability = T,
-              scale = F,
-              cost = param$cost,
-              gamma = param$gamma)
-  
+  if (dim(texts_train)[2] <= 2000){#relatively few dimensions )(probably LSA data set)
+    
+    if (verbose) print(sprintf('Training SVM classifier using radial kernel with cost %1.2f and gamma %1.2f...',
+                  param$cost, param$gamma))
+    
+          svm_m = svm(x = texts_train,#training vectors
+                      y = classes_train,#training classification
+                      kernel = 'radial', probability = T,
+                      scale = F,
+                      cost = param$cost,
+                      gamma = param$gamma)
+  } else {#many dimensions (probably raw word count data set)
+    
+    print(sprintf('Training SVM classifier using linear kernel...'))
+    
+          svm_m = svm(x = texts_train,#training vectors
+                      y = classes_train,#training classification
+                      kernel = 'linear', probability = T,
+                      scale = T)
+  }
   #performance on training sample
   #pred <- predict(svm_m, texts_train)
   #table(pred,factor(classes_train))
@@ -366,26 +391,27 @@ SVM_fun = function (texts_train, texts_test, classes_train, classes_test,
   
   #start off with a histogram only made for extracting values. The interest is not in looking at p
   
-  p = ggplot(data = data.frame(x = attr(pred, 'probabilities')[, 2],
-                               included = as.factor(classes_test)),
-             aes(x = x, fill = included, linetype = included)) +
-    geom_histogram(position = 'identity', alpha = 0.5, color = 'black')
-  # extract relevant variables from the plot object to a new data frame
-  # the grouping variable is named 'group' in the plot object
-  df <- ggplot_build(p)$data[[1]][ , c("xmin", "y", "group")]
-  #get the factor levels interpretable
-  df$group[df$group == 2] = 'should be included'
-  df$group[df$group == 1] = 'should be excluded'
-  
-  p_multihist = ggplot(data = df, aes(x = xmin, y = y, color = factor(group))) +
-    geom_step(size = 1.5)
-  
-  if(verbose) print(p_multihist)
+  # p = ggplot(data = data.frame(x = attr(pred, 'probabilities')[, 2],
+  #                              included = as.factor(classes_test)),
+  #            aes(x = x, fill = included, linetype = included)) +
+  #   geom_histogram(position = 'identity', alpha = 0.5, color = 'black')
+  # # extract relevant variables from the plot object to a new data frame
+  # # the grouping variable is named 'group' in the plot object
+  # df <- ggplot_build(p)$data[[1]][ , c("xmin", "y", "group")]
+  # #get the factor levels interpretable
+  # df$group[df$group == 2] = 'should be included'
+  # df$group[df$group == 1] = 'should be excluded'
+  # 
+  # p_multihist = ggplot(data = df, aes(x = xmin, y = y, color = factor(group))) +
+  #   geom_step(size = 1.5)
+  # 
+  # if(verbose) print(p_multihist)
   
   gc()
   
   #return all sorts of diagnostics
-  return(list(testing_sample_size = length(classes_test),
+  return(list(pred = pred,
+    testing_sample_size = length(classes_test),
               training_sample_size = length(classes_train),
               training_prop_positive_cases = mean(as.numeric(as.character(classes_train))),
               nDim = ncol(texts_train),
@@ -395,7 +421,85 @@ SVM_fun = function (texts_train, texts_test, classes_train, classes_test,
                                           max(attr(pred, 'probabilities')[classes_test == 1, 2]))/
                 sum(classes_test == 0),
               max_rej_conf_of_TP = max(attr(pred, 'probabilities')[classes_test == 1, 2]),#ideally low
-              testing_confusion_matrix = table(pred,factor(classes_test)),
-              multihist = p_multihist
+              testing_confusion_matrix = table(pred,factor(classes_test))#,
+              #multihist = p_multihist
+  ))
+}
+
+###################################################################################
+#Boosting
+
+boost_fun = function (texts_train, texts_test, classes_train, classes_test,
+                    nIter = ncol(texts_train), verbose = T){
+  
+  #This function trains a logitboost classification algorithm using decision stumps on text data and provides some diagnostics
+  #It outputs diagnostics
+  
+  #Train Boosting algo
+    if (verbose) print(sprintf('Training Logitboost classificatioon algorithm...'))
+    boost_m = LogitBoost(xlearn = as.matrix(texts_train),#training vectors,
+                         ylearn = classes_train,#training classification,
+                         nIter = nIter)
+    
+  #performance on training sample
+  #pred <- predict(boost_m, texts_train)
+  #table(pred,factor(classes_train))
+  #overall accuracy (training sample)
+  #sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_train[x])))/length(pred)
+  
+  #performance on test sample
+  pred <- predict(boost_m, texts_test)
+  if(verbose) print('Testing sample confusion matrix:')
+  if(verbose) print(table(pred,factor(classes_test)))
+  #overall accuracy (testing sample)
+  if(verbose) print(sprintf('Testing sample accuracy: %1.2f',
+                            sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_test[x])))/length(pred)))
+  
+  gc()
+  
+  #return all sorts of diagnostics
+  return(list(pred = pred,
+              testing_sample_size = length(classes_test),
+              training_sample_size = length(classes_train),
+              training_prop_positive_cases = mean(as.numeric(as.character(classes_train))),
+              nIter = nIter,
+              testing_sample_acc = sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_test[x])))/length(pred),
+              testing_confusion_matrix = table(pred,factor(classes_test))#,
+  ))
+}
+
+###################################################################################
+#RF
+
+RF_fun = function (texts_train, texts_test, classes_train, classes_test,
+                      ntree = 500, verbose = T){
+  
+  #This function trains a random forest classification algorithm on text data and provides some diagnostics
+  #It outputs diagnostics
+  
+  #Train RF algo
+  if (verbose) print(sprintf('Training Randoom Forest algorithm...'))
+  RF_m = randomForest(x = as.matrix(texts_train),#training vectors,
+                      y = classes_train,#training classification,
+                      xtest = as.matrix(texts_test),
+                      ytest = relevel(as.factor(classes_test), '1'),
+                      ntree = ntree)
+  
+  #performance on test sample
+  if(verbose) print('Testing sample confusion matrix:')
+  if(verbose) print(table(RF_m$test$predicted,factor(classes_test)))
+  #overall accuracy (testing sample)
+  if(verbose) print(sprintf('Testing sample accuracy: %1.2f',
+                            sum(unlist(lapply(1:length(RF_m$test$predicted), function(x) RF_m$test$predicted[x] == classes_test[x])))/length(RF_m$test$predicted)))
+  
+  gc()
+  
+  #return all sorts of diagnostics
+  return(list(pred = RF_m$test$predicted,
+              testing_sample_size = length(classes_test),
+              training_sample_size = length(classes_train),
+              training_prop_positive_cases = mean(as.numeric(as.character(classes_train))),
+              testing_sample_acc = sum(unlist(lapply(1:length(RF_m$test$predicted), function(x) RF_m$test$predicted[x] == classes_test[x])))/length(RF_m$test$predicted),
+              testing_confusion_matrix = table(RF_m$test$predicted,factor(classes_test))#,
   ))
 }
