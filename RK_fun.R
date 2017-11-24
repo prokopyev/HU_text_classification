@@ -1,61 +1,72 @@
-#This script includes helper functions for classifying article abstracts
+# Copyright (c) 2017 Humboldt-Universität zu Berlin
+#   
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#   
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-#(c) Richard Kunert September 2017
+##############################################################################################
+
+# This script includes helper functions for classification_master_RK.R
+# It was written by Richard Kunert for the Humboldt University's bologna.lab led by Wolfgang Deicke.
+# The bologna.lab is funded by Bundesministerium für Bildung und Forschung.
+# For questions and comments, please get in touch with Richard Kunert: rikunert@gmail.com.
+# Berlin, November 2017
 
 #########################################################################
-#Load libraries
+# LOAD LIBRARIES
 
-if(!require(textstem)){install.packages('textstem')} #
-library(textstem) #lemmatization (rather than stupid stemming)
+if(!require(textstem)){install.packages('textstem')}  # lemmatization (rather than just stemming)
+library(textstem)
 
-if(!require(lsa)){install.packages('lsa')} #latent semantic analysis
+if(!require(lsa)){install.packages('lsa')}  # latent semantic analysis
 library(lsa)
 
-if(!require(tm)){install.packages('tm')} #text mining
+if(!require(tm)){install.packages('tm')}  # text mining
 library(tm)
 
-if(!require(topicmodels)){install.packages('topicmodels')} #Latent Dirichlet Allocation
-library(topicmodels)
+if(!require(data.table)){install.packages('data.table')}  # rbindlist function
+library(data.table)
 
-if(!require(RTextTools)){install.packages('RTextTools')} #create_matrix function
-library(RTextTools)
-
-if(!require(smotefamily)){install.packages('smotefamily')} #Synthetic Minority Oversampling TEchnique
-if(!require(FNN)){install.packages('FNN')} #if not installed we get an error
-library(smotefamily)
-
-if(!require(data.table)){install.packages('data.table')} #Synthetic Minority Oversampling TEchnique
-library(data.table)#rbindlist function
-
-if(!require(ROSE)){install.packages('ROSE')} #Random Over-Sampling Examples
-library(ROSE)
-
-if(!require(e1071)){install.packages('e1071')} #SVM
+if(!require(e1071)){install.packages('e1071')}  # SVM
 library(e1071)
 
-if(!require(ggplot2)){install.packages('ggplot2')} #plotting
-library(ggplot2)
-
-if(!require(caTools)){install.packages('caTools')} #Boosting
+if(!require(caTools)){install.packages('caTools')}  # Boosting
 library(caTools)
 
-if(!require(randomForest)){install.packages('randomForest')} #Random Forest
-library(randomForest)
-
-
 #########################################################################
-#Data Cleaning
+# DATA CLEANING
 
-Cleaning_fun = function(texts){ 
+cleaning_fun <- function(texts) { 
+  # Clean and lemmatize English language texts (academic abstracts)
+  #
+  # Args:
+  #   text: A list of texts.
+  #
+  # Returns:
+  #   A list of cleaned and lemmatized texts
   
-  #Remove non-ASCII characters
-  texts = iconv(texts, "latin1", "ASCII", sub=" ")
+  # Remove non-ASCII characters
+  texts <- iconv(texts, "latin1", "ASCII", sub = " ")
   
-  #Remove non-alphanumeric characters
-  texts = gsub("[^[:alnum:] ]", "", texts)
+  # Remove non-alphanumeric characters
+  texts <- gsub("[^[:alnum:] ]", "", texts)
   
-  #Remove footers
-  texts = removeWords(texts,
+  # Remove footers
+  texts <- removeWords(texts,
                       c('PsycINFO Database Record c \\d+ APA all rights reserved',
                         'C \\d+ Elsevier Ltd All rights reserved',
                         'C \\d+ Elsevier BV All rights reserved',
@@ -108,398 +119,146 @@ Cleaning_fun = function(texts){
                         'c \\d+ by The International Union of Biochemistry and Molecular Biology \\d+ \\d+'
                       ))
   
-  #Lemmatize the corpus
-  texts = lemmatize_strings(texts)
-  
-  gc()
+  # Lemmatize the corpus
+  texts <- lemmatize_strings(texts)
   
   return(texts)
   
-  }
+}
 
 #########################################################################
-#LSA
+# LATENT SEMANTIC ANALYSIS
 
-LSA_fun = function(texts, nDim = 100, ngramLength = 1, verbose = T){ 
+LSA_fun <- function(texts, nDim = 100, ngramLength = 1, verbose = T) { 
+  # Turn a list of input strings (texts) into an nDim dimensional semantic space via LSA
+  #
+  # Args:
+  #   text: list of texts
+  #   nDim: the number of dimensions into which texts and words are abstracted during LSA
+  #   ngramLength: basic unit for LSA, default (1) is words
+  #   verbose: If TRUE, print start of code
+  #
+  # Returns:
+  #   nrow(texts) x nDim matrix representing each string as a vector in semantic space
   
-  #This function turns a list of input strings (texts) into an nDim dimensional semantic space
-  #The output is a nrow(texts) x nDim matrix representing each string as a vector in semantic space
+  if (verbose) 
+    print(sprintf('Creating LSA space with nDim %d and ngramLength %d...', nDim, ngramLength))
   
-  if (verbose) print(sprintf('Creating LSA space with nDim %d and ngramLength %d...', nDim, ngramLength))
-  
-  #texts should be a list of strings
-  
-  #create document term matrix
-  corp <- Corpus(VectorSource(texts))
+  corp <- Corpus(VectorSource(texts))  # create text corpus
   
   ngramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = ngramLength, max = ngramLength))
   
-  tdm = TermDocumentMatrix(corp, control = list(weighting = weightTfIdf, removePunctuation = TRUE, 
+  tdm <- TermDocumentMatrix(corp, control = list(weighting = weightTfIdf, removePunctuation = TRUE, 
                                                 removeNumbers = TRUE, stopwords = TRUE,
                                                 tolower = T,
                                                 minWordLength = 3,
                                                 tokenize=ngramTokenizer))
   
-  # create LSA space
-  lsa_space = lsa(tdm, dims = nDim)
-  #The diagonal matrix Sk contains the singular values of TDM in descending order.
-  #The ith singular value indicates the amount of variation along ith axis. 
-  #Tk will consist of terms and values along each dimension. 
-  #Dk will consist of documents and its values along each dimension.
+  lsa_space <- lsa(tdm, dims = nDim)  # create LSA space
   
-  gc()
   return(lsa_space$dk)
 }
 
-#########################################################################
-#LDA (Latent Dirichlet Allocation)
-
-LDA_fun = function(texts, nDim = 100, verbose = T){ 
-  
-  #This function turns a list of input strings (texts) into an nDim dimensional topic space
-  #The output is a nrow(texts) x nDim matrix representing each string as a vector in topic space
-  
-  if (verbose) print('Creating LDA topics...')
-  
-  corp <- Corpus(VectorSource(texts))
-  dtm_lda = DocumentTermMatrix(corp, control = list(weighting = weightTf,#weightTfIdf does not work
-                                                    removePunctuation = TRUE, 
-                                                    removeNumbers = TRUE, stopwords = TRUE,
-                                                    tolower = T,
-                                                    minWordLength = 3))
-  
-  
-  lda_space = LDA(dtm_lda, nDim)
-  
-  #as.matrix(terms(lda,6))#top 6 terms in each topic
-  
-  gc()
-  return(lda_space@gamma)#probabilities associated with each topic assignment
-}
-
-#########################################################################
-#Raw text vectorization
-
-TXT_fun = function(texts, weighting = tm::weightTfIdf, ngramLength = 1, verbose = T){ 
-  
-  #This function turns a list of input strings (texts) into an n dimensional word space
-  #The output is a nrow(texts) x n (words) matrix representing each string as a vector in word space
-  
-  if (verbose) print(sprintf('Vectorizing text at ngramLength %d...', ngramLength))
-  
-  corp <- Corpus(VectorSource(texts))
-  dtm = create_matrix(texts, language="english", removeNumbers=TRUE,
-                      stemWords=F, removeStopwords=TRUE, toLower=TRUE,
-                      ngramLength= ngramLength, weighting=weighting)#removeSparseTerms=.95,
-  # dtm = DocumentTermMatrix(corp, control = list(weighting = weightTfIdf, removePunctuation = TRUE, 
-  #                                               removeNumbers = TRUE, stopwords = TRUE,
-  #                                               tolower = T,
-  #                                               minWordLength = 3))
-  sparse_DTM <- sparseMatrix(i = dtm$i, j = dtm$j, x = dtm$v,
-                             dims = dim(dtm),
-                             dimnames = list(rownames(dtm), colnames(dtm)))
-  
-  gc()
-  return(as.matrix(sparse_DTM))
-  
-}
-
 ###################################################################################
-#BALANCE DATA SET
+# SUPPORT VECTOR MACHINE
 
-balance_fun = function(texts, classes, balance_algo = 'SMOTE', verbose = T){
-  
-  #A collection of options for turning an unbalanced data set into a balanced one
-  #The data set is defined by texts (a n x m matrix with rows representing texts and columns representing dimensions)
-  #and classes (the class membership labels corresponding to rows in texts)
-  #values for balance_algo = c('none', 'under', 'SMOTE', 'ROSE')
-  
-  if (verbose) print('Balancing training data...')
-  
-  if (balance_algo == 'none') {#simply ignore the problem and live with the imbalance
-    
-    texts_out = texts 
-    classes_out = classes
-    
-  } else if (balance_algo == 'under') {#randomly undersampling the majority case 
-    
-    zero_idx = sample(which(classes == 0),
-                      sum(classes == 1.0, na.rm = T))
-    
-    texts_out = texts[c(zero_idx, which(classes == 1.0)),]
-    classes_out = classes[c(zero_idx, which(classes == 1.0))]
-    
-  } else if (balance_algo == 'SMOTE') {#SMOTE (Synthetic Minority Oversampling TEchnique)
-    
-    #the following code is a nearly verbatim copy of the SMOTE function.
-    #I adjusted it to work with matrices
-    
-    #otherwise use this, which fails with very large input matrix (raw DTM)
-    #texts_SMOTE = SMOTE(as.data.frame(texts), classes, K = 5, dup_size = 0)
-    
-    X = texts
-    target = classes
-    K = 5
-    dup_size = 0
-    
-    ncD = ncol(X)
-    n_target = table(target)
-    classP = names(which.min(n_target))
-    P_set = subset(X, target == names(which.min(n_target)))[sample(min(n_target)),]#minority
-    N_set = subset(X, target != names(which.min(n_target)))#majority
-    P_class = rep(names(which.min(n_target)), nrow(P_set))
-    N_class = target[target != names(which.min(n_target))]
-    sizeP = nrow(P_set)
-    sizeN = nrow(N_set)
-    knear = knearest(P_set, P_set, K)
-    sum_dup = n_dup_max(sizeP + sizeN, sizeP, sizeN, dup_size)
-    syn_dat = NULL
-    for (i in 1:sizeP) {
-      if (is.matrix(knear)) {
-        pair_idx = knear[i, ceiling(runif(sum_dup) * K)]
-      }
-      else {
-        pair_idx = rep(knear[i], sum_dup)
-      }
-      g = runif(sum_dup)
-      P_i = matrix(unlist(P_set[i, ]), sum_dup, ncD, byrow = TRUE)
-      Q_i = as.matrix(P_set[pair_idx, ])
-      syn_i = P_i + g * (Q_i - P_i)
-      syn_dat = rbind(syn_dat, syn_i)
-    }
-    P_set = cbind(P_set, P_class)
-    #P_set[, ncD + 1] = P_class#doesn't work for matrices -RK
-    #colnames(P_set) = c(colnames(X), "class")
-    N_set = cbind(N_set, N_class)
-    #N_set[, ncD + 1] = N_class
-    #colnames(N_set) = c(colnames(X), "class")
-    rownames(syn_dat) = NULL
-    syn_dat = data.frame(syn_dat)
-    syn_dat = cbind(syn_dat, rep(names(which.min(n_target)), nrow(syn_dat))) 
-    #syn_dat[, ncD + 1] = rep(names(which.min(n_target)), nrow(syn_dat))
-    #colnames(syn_dat) = c(colnames(X), "class")
-    names(syn_dat) = NULL
-    NewD = data.frame(rbindlist(list(as.data.frame(P_set),
-                                     as.data.frame(syn_dat), 
-                                     as.data.frame(N_set))))
-    #NewD = rbind(P_set, syn_dat, N_set)
-    rownames(NewD) = NULL
-    D_result = list(data = NewD, syn_data = syn_dat, orig_N = N_set, 
-                    orig_P = P_set, K = K, K_all = NULL, dup_size = sum_dup, 
-                    outcast = NULL, eps = NULL, method = "SMOTE")
-    class(D_result) = "gen_data"
+SVM_fun <- function(texts_train, texts_test, classes_train, classes_test = NA,
+                    param = data.frame(cost = NA, gamma = NA), verbose = T) {
+  # Train a Support Vector Machine classifier on text data
+  #
+  # Args:
+  #   texts_train: list of texts represented as matrix (texts x semantic dimension) (training set)
+  #   texts_test: list of texts represented as matrix (texts x semantic dimension) (test set)
+  #   classes_train: list of class labels (training set) 
+  #   classes_test: list of class labels (test set)
+  #   param: parameters sent to svm() function of e1071 library, default is finding these parameters automatically
+  #   verbose: If TRUE, print progress messages
+  #
+  # Returns:
+  #   predicted classes in test set and settings
 
-    #end of copying SMOTE function
-        
-    texts_SMOTE = D_result
-    
-    texts_out = as.matrix(texts_SMOTE$data[,1:ncol(texts)])
-    class(texts_out) = 'numeric'
-    classes_out = texts_SMOTE$data[,ncol(texts) + 1]
-    
-  } else if (balance_algo == 'ROSE') {#ROSE (Random Over-Sampling Examples)
-    
-    data_for_ROSE = as.data.frame(texts)
-    data_for_ROSE$classes = classes
-    
-    data_ROSE <- ROSE(classes~., data=data_for_ROSE)
-    
-    texts_out = data_ROSE$data[,1:ncol(texts)]
-    classes_out = data_ROSE$data$classes
-    
-  }
-  
-  gc()
-  
-  return(list(texts = texts_out,
-                    classes = classes_out))
-  
-}
-
-###################################################################################
-#SVM
-
-SVM_fun = function (texts_train, texts_test, classes_train, classes_test,
-                    param = data.frame(cost = NA, gamma = NA), verbose = T){
-  
-  #This function trains a SVM classifier on text data and provides some diagnostics
-  #It automatically finds optimal classifier settings
-  #It outputs diagnostics
-  
-  #Determine optimal SVM parameters
-  if (is.na(param$cost)){
+  # Determine optimal SVM parameters in case no parameters given
+  if (is.na(param$cost)) {
     if (verbose) print('Determining optimal SVM parameters...')
-    svm_tune <- tune(svm, train.x=texts_train,
-                     train.y=classes_train,
-                     kernel="radial",
+    svm_tune <- tune(svm, train.x = texts_train,
+                     train.y = classes_train,
+                     kernel = "radial",
                      scale = T,
                      parallel.core = 2,
-                     ranges=list(cost=10,#10^(0:3),
-                                 gamma=seq(20,100,10)))#3^(0:5)))
+                     ranges = list(cost = 10,#
+                                 gamma = seq(1, 100, 10)))#
     
-    if(verbose) print(svm_tune)
-    #svm_tune$performances$error
+    if (verbose) 
+      print(svm_tune)
     
-    param$cost = svm_tune$best.parameters$cost
-    param$gamma = svm_tune$best.parameters$gamma
+    param$cost <- svm_tune$best.parameters$cost
+    param$gamma <- svm_tune$best.parameters$gamma
   }
   
-  #Train SVM
-  if (dim(texts_train)[2] <= 2000){#relatively few dimensions )(probably LSA data set)
-    
-    if (verbose) print(sprintf('Training SVM classifier using radial kernel with cost %1.2f and gamma %1.2f...',
+  # Train SVM
+  if (verbose) 
+    print(sprintf('Training SVM classifier using radial kernel with cost %1.2f and gamma %1.2f...',
                   param$cost, param$gamma))
-    
-          svm_m = svm(x = texts_train,#training vectors
-                      y = classes_train,#training classification
-                      kernel = 'radial', probability = T,
-                      scale = F,
-                      cost = param$cost,
-                      gamma = param$gamma)
-  } else {#many dimensions (probably raw word count data set)
-    
-    print(sprintf('Training SVM classifier using linear kernel...'))
-    
-          svm_m = svm(x = texts_train,#training vectors
-                      y = classes_train,#training classification
-                      kernel = 'linear', probability = T,
-                      scale = T)
-  }
-  #performance on training sample
-  #pred <- predict(svm_m, texts_train)
-  #table(pred,factor(classes_train))
-  #overall accuracy (training sample)
-  #sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_train[x])))/length(pred)
   
-  #performance on test sample
+  svm_m <- svm(x = texts_train,  # training vectors
+              y = classes_train,  # training classification
+              kernel = 'radial', probability = T,
+              scale = F,
+              cost = param$cost,
+              gamma = param$gamma)
+  
+  # performance on test sample
   pred <- predict(svm_m, texts_test, probability = T)
-  if(verbose) print('Testing sample confusion matrix:')
-  if(verbose) print(table(pred,factor(classes_test)))
-  #overall accuracy (testing sample)
-  if(verbose) print(sprintf('Testing sample accuracy: %1.2f',
-                            sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_test[x])))/length(pred)))
   
-  #mean probability of belonging to zero case
-  #mean(attr(pred, 'probabilities')[classes_test == 1, 2])#ideally low
-  #mean(attr(pred, 'probabilities')[classes_test == 0, 2])#ideally high
+  if (verbose) 
+    print('Testing sample confusion matrix:')
   
-  #proportion of to-be-excluded abstracts which can be excluded without excluding any to-be-included abstracts
-  if(verbose) print(sprintf('Proportion of to-be-excluded abstracts in testing sample which can be excluded without excluding any to-be-included abstracts: %1.2f',
-                            sum(attr(pred, 'probabilities')[classes_test == 0, 2] > 
-                                  max(attr(pred, 'probabilities')[classes_test == 1, 2]))/
-                              sum(classes_test == 0)))
+  if (verbose && !is.na(classes_test)) 
+    print(table(pred,factor(classes_test)))
   
-  #start off with a histogram only made for extracting values. The interest is not in looking at p
-  
-  # p = ggplot(data = data.frame(x = attr(pred, 'probabilities')[, 2],
-  #                              included = as.factor(classes_test)),
-  #            aes(x = x, fill = included, linetype = included)) +
-  #   geom_histogram(position = 'identity', alpha = 0.5, color = 'black')
-  # # extract relevant variables from the plot object to a new data frame
-  # # the grouping variable is named 'group' in the plot object
-  # df <- ggplot_build(p)$data[[1]][ , c("xmin", "y", "group")]
-  # #get the factor levels interpretable
-  # df$group[df$group == 2] = 'should be included'
-  # df$group[df$group == 1] = 'should be excluded'
-  # 
-  # p_multihist = ggplot(data = df, aes(x = xmin, y = y, color = factor(group))) +
-  #   geom_step(size = 1.5)
-  # 
-  # if(verbose) print(p_multihist)
-  
-  gc()
-  
-  #return all sorts of diagnostics
   return(list(pred = pred,
-    testing_sample_size = length(classes_test),
+              testing_sample_size = length(classes_test),
               training_sample_size = length(classes_train),
-              training_prop_positive_cases = mean(as.numeric(as.character(classes_train))),
-              nDim = ncol(texts_train),
-              #SVM_parameters = svm_tune$best.parameters,
-              testing_sample_acc = sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_test[x])))/length(pred),
-              prop_excl_before_FN = sum(attr(pred, 'probabilities')[classes_test == 0, 2] > 
-                                          max(attr(pred, 'probabilities')[classes_test == 1, 2]))/
-                sum(classes_test == 0),
-              max_rej_conf_of_TP = max(attr(pred, 'probabilities')[classes_test == 1, 2]),#ideally low
-              testing_confusion_matrix = table(pred,factor(classes_test))#,
-              #multihist = p_multihist
-  ))
+              nDim = ncol(texts_train)))
 }
 
 ###################################################################################
-#Boosting
+# BOOSTING CLASSIFIER
 
-boost_fun = function (texts_train, texts_test, classes_train, classes_test,
-                    nIter = ncol(texts_train), verbose = T){
+boost_fun <- function(texts_train, texts_test, classes_train, classes_test = NA,
+                      nIter = ncol(texts_train), verbose = T) {
+  # Train a logitboost classification algorithm using decision stumps
+  #
+  # Args:
+  #   texts_train: list of texts represented as matrix (texts x semantic dimension) (training set)
+  #   texts_test: list of texts represented as matrix (texts x semantic dimension) (test set)
+  #   classes_train: list of class labels (training set) 
+  #   classes_test: list of class labels (test set)
+  #   nIter: parameter sent to LogitBoost() function of caTools library, default is number of dimensions in semantic space
+  #   verbose: If TRUE, print progress messages
+  #
+  # Returns:
+  #   predicted classes in test set and settings
   
-  #This function trains a logitboost classification algorithm using decision stumps on text data and provides some diagnostics
-  #It outputs diagnostics
+  # Train Boosting algo
+  if (verbose) 
+    print(sprintf('Training Logitboost classificatioon algorithm...'))
   
-  #Train Boosting algo
-    if (verbose) print(sprintf('Training Logitboost classificatioon algorithm...'))
-    boost_m = LogitBoost(xlearn = as.matrix(texts_train),#training vectors,
-                         ylearn = classes_train,#training classification,
-                         nIter = nIter)
-    
-  #performance on training sample
-  #pred <- predict(boost_m, texts_train)
-  #table(pred,factor(classes_train))
-  #overall accuracy (training sample)
-  #sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_train[x])))/length(pred)
+  boost_m <- LogitBoost(xlearn = as.matrix(texts_train),#training vectors,
+                       ylearn = classes_train,#training classification,
+                       nIter = nIter)
   
-  #performance on test sample
+  # performance on test sample
   pred <- predict(boost_m, texts_test)
-  if(verbose) print('Testing sample confusion matrix:')
-  if(verbose) print(table(pred,factor(classes_test)))
-  #overall accuracy (testing sample)
-  if(verbose) print(sprintf('Testing sample accuracy: %1.2f',
-                            sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_test[x])))/length(pred)))
   
-  gc()
+  if (verbose) 
+    print('Testing sample confusion matrix:')
   
-  #return all sorts of diagnostics
+  if (verbose && !is.na(classes_test)) 
+    print(table(pred,factor(classes_test)))
+  
   return(list(pred = pred,
               testing_sample_size = length(classes_test),
               training_sample_size = length(classes_train),
-              training_prop_positive_cases = mean(as.numeric(as.character(classes_train))),
-              nIter = nIter,
-              testing_sample_acc = sum(unlist(lapply(1:length(pred), function(x) pred[x] == classes_test[x])))/length(pred),
-              testing_confusion_matrix = table(pred,factor(classes_test))#,
-  ))
-}
-
-###################################################################################
-#RF
-
-RF_fun = function (texts_train, texts_test, classes_train, classes_test,
-                      ntree = 500, verbose = T){
-  
-  #This function trains a random forest classification algorithm on text data and provides some diagnostics
-  #It outputs diagnostics
-  
-  #Train RF algo
-  if (verbose) print(sprintf('Training Randoom Forest algorithm...'))
-  RF_m = randomForest(x = as.matrix(texts_train),#training vectors,
-                      y = classes_train,#training classification,
-                      xtest = as.matrix(texts_test),
-                      ytest = relevel(as.factor(classes_test), '1'),
-                      ntree = ntree)
-  
-  #performance on test sample
-  if(verbose) print('Testing sample confusion matrix:')
-  if(verbose) print(table(RF_m$test$predicted,factor(classes_test)))
-  #overall accuracy (testing sample)
-  if(verbose) print(sprintf('Testing sample accuracy: %1.2f',
-                            sum(unlist(lapply(1:length(RF_m$test$predicted), function(x) RF_m$test$predicted[x] == classes_test[x])))/length(RF_m$test$predicted)))
-  
-  gc()
-  
-  #return all sorts of diagnostics
-  return(list(pred = RF_m$test$predicted,
-              testing_sample_size = length(classes_test),
-              training_sample_size = length(classes_train),
-              training_prop_positive_cases = mean(as.numeric(as.character(classes_train))),
-              testing_sample_acc = sum(unlist(lapply(1:length(RF_m$test$predicted), function(x) RF_m$test$predicted[x] == classes_test[x])))/length(RF_m$test$predicted),
-              testing_confusion_matrix = table(RF_m$test$predicted,factor(classes_test))#,
-  ))
+              nIter = nIter))
 }
